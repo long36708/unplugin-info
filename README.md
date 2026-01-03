@@ -162,7 +162,8 @@ build({
 });
 ```
 
-<br></details>
+<br>
+</details>
 
 <details>
 <summary>Astro</summary><br>
@@ -179,7 +180,8 @@ export default defineConfig({
 });
 ```
 
-<br></details>
+<br>
+</details>
 
 ### TypeScript
 
@@ -209,7 +211,7 @@ Or if you did some advanced modification (see below), you can just copy and past
 
 ## Usage
 
-`unplugin-info` creates several virtual modules, `~build/time`, `~build/git`, `~build/ci`, `~build/console`, `~build/meta`, `~build/env`, and `~build/package`.
+`unplugin-info` creates several virtual modules, `~build/time`, `~build/git`, `~build/svn`, `~build/ci`, `~build/console`, `~build/meta`, `~build/env`, and `~build/package`.
 
 You can just import these modules as usual, and do anything with them. Common use cases may be like:
 
@@ -218,9 +220,11 @@ You can just import these modules as usual, and do anything with them. Common us
 
 import now from '~build/time'
 import { sha } from '~build/git'
+import { revision } from '~build/svn'
 
 // console log the build info
 console.log(`Build ${sha} at ${now}`)
+console.log(`SVN Revision: ${revision}`)
 ```
 
 ```tsx
@@ -297,6 +301,63 @@ export default defineConfig({
 ```
 
 Full example is located at [examples/vite](https://github.com/yjl9903/unplugin-info/blob/main/examples/vite/vite.config.ts).
+
+### ~build/svn
+
+It exports the information about the current SVN repo, which is powered by executing SVN commands.
+
+```ts
+import {
+  url,
+  repositoryRoot,
+  repositoryUuid,
+  revision,
+  nodeKind,
+  lastChangedRev,
+  lastChangedDate,
+  lastChangedAuthor,
+  sha,
+  abbreviatedSha,
+  commitMessage,
+  author,
+  authorDate,
+  authorEmail,
+  branch,
+  tag,
+  tags,
+  lastTag,
+  describe
+} from '~build/svn';
+
+// ...
+```
+
+> [!NOTE]
+>
+> This module is only available when the project is under SVN version control. If not in an SVN repo, all exported fields will be `null`.
+
+You can also **custom or override the exported SVN information**.
+
+The following example adds another custom field to `~build/svn`.
+
+```ts
+// vite.config.ts
+
+import Info from 'unplugin-info/vite';
+
+export default defineConfig({
+  plugins: [
+    Info({
+      svn: {
+        // Add custom field
+        customInfo: async () => {
+          return 'Custom SVN info';
+        }
+      }
+    })
+  ]
+});
+```
 
 ### ~build/ci
 

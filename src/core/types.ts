@@ -28,6 +28,11 @@ export interface Options {
   git?: Record<string, (git: SimpleGit) => Promise<any> | any>;
 
   /**
+   * Custom the exported fields in ~build/svn
+   */
+  svn?: Record<string, (info: any) => Promise<any> | any>;
+
+  /**
    * Filter exported fields of package.json
    */
   package?: string[] | Record<string, boolean | null | undefined>;

@@ -7,6 +7,7 @@ import type { Options } from './types';
 
 import { BuildTimeModule } from './modules/time';
 import { BuildGitModule } from './modules/git';
+import { BuildSvnModule } from './modules/svn';
 import { LegacyInfoModule } from './modules/info';
 import { BuildConsoleModule } from './modules/console';
 import { BuildCIModule } from './modules/ci';
@@ -23,6 +24,7 @@ export const UnpluginInfo = /* #__PURE__ */ createUnplugin<Options | undefined>(
     const modules = {
       Time: new BuildTimeModule(root, options),
       Git: new BuildGitModule(root, options),
+      Svn: new BuildSvnModule(root, options),
       CI: new BuildCIModule(root, options),
       Info: new LegacyInfoModule(root, options),
       Console: new BuildConsoleModule(root, options),
