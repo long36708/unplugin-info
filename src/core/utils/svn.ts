@@ -5,11 +5,30 @@ import type { Options } from '../types';
 
 const execAsync = promisify(exec);
 
+// 检查系统是否有svn命令
+async function checkSvnAvailable(): Promise<boolean> {
+  try {
+    const result = await execAsync('svn --version', { encoding: 'utf-8' });
+    return result.stdout.includes('svn');
+  } catch (error) {
+    return false;
+  }
+}
+
+// 在模块顶层添加检查
+const isSvnInstalledPromise = checkSvnAvailable();
+
 export async function getSvnInfo(root: string, extra: Options['svn'] = {}) {
+  const isSvnInstalled = await isSvnInstalledPromise;
+  
+  if (!isSvnInstalled) {
+    console.warn('SVN is not installed or not in PATH. SVN info will not be available.');
+    return undefined;
+  }
+  
   try {
     // 检查是否是 SVN 仓库
-    const svnDir = await execSync('svn info --show-item wc-root', root);
-    if (!svnDir) {
+    if (!await isSvnRepo(root)) {
       return undefined;
     }
 
@@ -31,7 +50,27 @@ export async function getSvnInfo(root: string, extra: Options['svn'] = {}) {
       ...Object.fromEntries(extraResult)
     };
   } catch (error) {
+    console.error('Error getting SVN info:', error);
     return undefined;
+  }
+}
+
+async function isSvnRepo(root: string): Promise<boolean> {
+  try {
+    // 尝试多种方法检测SVN仓库
+    // 方法1: 检查.svn目录
+    const fs = await import('fs');
+    const path = await import('path');
+    
+    if (fs.existsSync(path.join(root, '.svn'))) {
+      return true;
+    }
+    
+    // 方法2: 使用svn info命令 (兼容旧版本)
+    const output = await execSync('svn info', root);
+    return !!output;
+  } catch (error) {
+    return false;
   }
 }
 
@@ -124,7 +163,11 @@ async function getCommitLog(root: string) {
 
 async function getBranchOrTag(root: string) {
   try {
-    const url = await execSync('svn info --show-item url', root);
+    // 使用兼容旧版本的命令获取URL
+    const infoOutput = await execSync('svn info', root);
+    const urlMatch = infoOutput.match(/URL:\s+(.*)/);
+    const url = urlMatch ? urlMatch[1] : '';
+
     if (url.includes('/trunk/')) {
       return 'trunk';
     }
@@ -202,5 +245,9 @@ function toCamelCase(str: string) {
 function execSync(command: string, cwd: string): Promise<string> {
   return execAsync(command, { cwd, encoding: 'utf-8' })
     .then((res) => res.stdout.trim())
-    .catch(() => '');
+    .catch((err) => {
+      // 添加调试信息
+      console.debug(`SVN command failed: ${command}`, err.message);
+      return '';
+    });
 }
