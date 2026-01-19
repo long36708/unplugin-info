@@ -77,6 +77,20 @@ async function isSvnRepo(root: string): Promise<boolean> {
 async function getSvnBasicInfo(root: string) {
   try {
     const output = await execSync('svn info', root);
+    if (!output) {
+      console.debug('No output from "svn info" command');
+      return {
+        url: undefined,
+        repositoryRoot: undefined,
+        repositoryUuid: undefined,
+        revision: undefined,
+        nodeKind: undefined,
+        lastChangedRev: undefined,
+        lastChangedDate: undefined,
+        lastChangedAuthor: undefined
+      };
+    }
+    
     const lines = output.split('\n');
     const info: Record<string, string> = {};
 
@@ -89,16 +103,17 @@ async function getSvnBasicInfo(root: string) {
     }
 
     return {
-      url: info['URL'],
-      repositoryRoot: info['Repository Root'],
-      repositoryUuid: info['Repository UUID'],
-      revision: info['Revision'],
-      nodeKind: info['Node Kind'],
-      lastChangedRev: info['Last Changed Rev'],
-      lastChangedDate: info['Last Changed Date'],
-      lastChangedAuthor: info['Last Changed Author']
+      url: info['url'] || info['URL'],
+      repositoryRoot: info['repositoryRoot'] || info['repository root'] || info['Repository Root'],
+      repositoryUuid: info['repositoryUuid'] || info['repository uuid'] || info['Repository UUID'],
+      revision: info['revision'] || info['Revision'] || info['revision'],
+      nodeKind: info['nodeKind'] || info['node kind'] || info['Node Kind'],
+      lastChangedRev: info['lastChangedRev'] || info['last changed rev'] || info['Last Changed Rev'] || info['lastChangedRevision'] || info['last changed revision'],
+      lastChangedDate: info['lastChangedDate'] || info['last changed date'] || info['Last Changed Date'],
+      lastChangedAuthor: info['lastChangedAuthor'] || info['last changed author'] || info['Last Changed Author']
     };
   } catch (error) {
+    console.debug('Error getting basic SVN info:', error);
     return {
       url: undefined,
       repositoryRoot: undefined,
@@ -166,21 +181,36 @@ async function getBranchOrTag(root: string) {
     // 使用兼容旧版本的命令获取URL
     const infoOutput = await execSync('svn info', root);
     const urlMatch = infoOutput.match(/URL:\s+(.*)/);
-    const url = urlMatch ? urlMatch[1] : '';
+    const url = urlMatch ? urlMatch[1].trim() : '';
 
-    if (url.includes('/trunk/')) {
+    if (url.includes('/trunk/') || url.endsWith('/trunk')) {
       return 'trunk';
     }
     if (url.includes('/branches/')) {
       const match = url.match(/\/branches\/([^\/]+)/);
-      return match ? match[1] : undefined;
+      return match ? match[1] : 'unknown-branch';
     }
     if (url.includes('/tags/')) {
       const match = url.match(/\/tags\/([^\/]+)/);
-      return match ? match[1] : undefined;
+      return match ? match[1] : 'unknown-tag';
     }
-    return undefined;
+    
+    // 如果URL中没有明显标识，尝试从Working Copy Root Path推断
+    const rootPathMatch = infoOutput.match(/Working Copy Root Path:\s+(.*)/);
+    if (rootPathMatch) {
+      const rootPath = rootPathMatch[1];
+      const parts = rootPath.split('/');
+      const lastPart = parts[parts.length - 1];
+      
+      // 假设如果目录名不是trunk/tags，那就是一个分支
+      if (lastPart && lastPart !== 'trunk' && !lastPart.startsWith('tags')) {
+        return lastPart;
+      }
+    }
+    
+    return 'unknown';
   } catch (error) {
+    console.debug('Error getting branch or tag:', error);
     return undefined;
   }
 }
@@ -244,10 +274,17 @@ function toCamelCase(str: string) {
 
 function execSync(command: string, cwd: string): Promise<string> {
   return execAsync(command, { cwd, encoding: 'utf-8' })
-    .then((res) => res.stdout.trim())
+    .then((res) => {
+      // 检查返回码，如果非零表示命令执行失败
+      if (res.stderr && res.stderr.trim() !== '') {
+        console.debug(`SVN command stderr: ${command}`, res.stderr);
+        return ''; // 命令失败时返回空字符串
+      }
+      return res.stdout.trim();
+    })
     .catch((err) => {
       // 添加调试信息
-      console.debug(`SVN command failed: ${command}`, err.message);
+      console.debug(`SVN command failed: ${command}`, err.message || err);
       return '';
     });
 }
